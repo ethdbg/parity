@@ -98,7 +98,7 @@ extern crate alloc_system;
 
 mod account;
 mod blockchain;
-mod cache;
+pub mod cache;
 mod cli;
 mod configuration;
 mod dapps;
@@ -121,7 +121,7 @@ mod upgrade;
 mod url;
 mod user_defaults;
 mod whisper;
-mod db;
+pub mod db;
 
 use std::io::BufReader;
 use std::fs::File;
