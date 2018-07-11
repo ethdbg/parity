@@ -171,7 +171,7 @@ mod account_db;
 mod builtin;
 mod externalities;
 mod blockchain;
-mod factory;
+pub mod factory; // made this public for edb
 mod tx_filter;
 
 #[cfg(test)]
@@ -185,4 +185,3 @@ pub use types::*;
 pub use executive::contract_address;
 pub use evm::CreateContractAddress;
 pub use blockchain::{BlockChainDB, BlockChainDBHandler};
-pub use factory::Factories;
