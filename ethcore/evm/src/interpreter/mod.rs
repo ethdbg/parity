@@ -59,14 +59,14 @@ const TWO_POW_224: U256 = U256([0, 0, 0, 0x100000000]); //0x1 00000000 00000000 
 const TWO_POW_248: U256 = U256([0, 0, 0, 0x100000000000000]); //0x1 00000000 00000000 00000000 00000000 00000000 00000000 00000000 000000
 
 /// Abstraction over raw vector of Bytes. Easier state management of PC.
-struct CodeReader {
-	position: ProgramCounter,
-	code: Arc<Bytes>,
+pub struct CodeReader {
+	pub position: ProgramCounter,
+	pub code: Arc<Bytes>,
 }
 
 impl CodeReader {
 	/// Create new code reader - starting at position 0.
-	fn new(code: Arc<Bytes>) -> Self {
+	pub fn new(code: Arc<Bytes>) -> Self {
 		CodeReader {
 			code,
 			position: 0,
@@ -74,19 +74,19 @@ impl CodeReader {
 	}
 
 	/// Get `no_of_bytes` from code and convert to U256. Move PC
-	fn read(&mut self, no_of_bytes: usize) -> U256 {
+	pub fn read(&mut self, no_of_bytes: usize) -> U256 {
 		let pos = self.position;
 		self.position += no_of_bytes;
 		let max = cmp::min(pos + no_of_bytes, self.code.len());
 		U256::from(&self.code[pos..max])
 	}
 
-	fn len(&self) -> usize {
+	pub fn len(&self) -> usize {
 		self.code.len()
 	}
 }
 
-enum InstructionResult<Gas> {
+pub enum InstructionResult<Gas> {
 	Ok,
 	UnusedGas(Gas),
 	JumpToPosition(U256),
@@ -132,7 +132,7 @@ struct InterpreterParams {
 }
 
 impl From<ActionParams> for InterpreterParams {
-	fn from(params: ActionParams) -> Self {
+	pub fn from(params: ActionParams) -> Self {
 		InterpreterParams {
 			code_address: params.code_address,
 			code_hash: params.code_hash,
@@ -161,18 +161,18 @@ pub enum InterpreterResult {
 
 /// Intepreter EVM implementation
 pub struct Interpreter<Cost: CostType> {
-	mem: Vec<u8>,
-	cache: Arc<SharedCache>,
-	params: InterpreterParams,
-	reader: CodeReader,
-	return_data: ReturnData,
-	informant: informant::EvmInformant,
-	do_trace: bool,
-	done: bool,
-	valid_jump_destinations: Option<Arc<BitSet>>,
-	gasometer: Gasometer<Cost>,
-	stack: VecStack<U256>,
-	_type: PhantomData<Cost>,
+	pub mem: Vec<u8>,
+	pub cache: Arc<SharedCache>,
+	pub params: InterpreterParams,
+	pub reader: CodeReader,
+	pub return_data: ReturnData,
+	pub informant: informant::EvmInformant,
+	pub do_trace: bool,
+	pub done: bool,
+	pub valid_jump_destinations: Option<Arc<BitSet>>,
+	pub gasometer: Gasometer<Cost>,
+	pub stack: VecStack<U256>,
+	pub _type: PhantomData<Cost>,
 }
 
 impl<Cost: CostType> vm::Vm for Interpreter<Cost> {
