@@ -105,7 +105,7 @@ pub enum InstructionResult<Gas> {
 
 /// ActionParams without code, so that it can be feed into CodeReader.
 #[derive(Debug)]
-struct InterpreterParams {
+pub struct InterpreterParams {
 	/// Address of currently executed code.
 	pub code_address: Address,
 	/// Hash of currently executed code.
