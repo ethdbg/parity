@@ -44,7 +44,7 @@ pub struct InstructionRequirements<Cost> {
 	pub memory_total_gas: Cost,
 	pub memory_required_size: usize,
 }
-
+#[derive(Clone)]
 pub struct Gasometer<Gas> {
 	pub current_gas: Gas,
 	pub current_mem_gas: Gas,

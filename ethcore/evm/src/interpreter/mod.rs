@@ -59,6 +59,7 @@ const TWO_POW_224: U256 = U256([0, 0, 0, 0x100000000]); //0x1 00000000 00000000 
 const TWO_POW_248: U256 = U256([0, 0, 0, 0x100000000000000]); //0x1 00000000 00000000 00000000 00000000 00000000 00000000 00000000 000000
 
 /// Abstraction over raw vector of Bytes. Easier state management of PC.
+#[derive(Clone)]
 pub struct CodeReader {
 	pub position: ProgramCounter,
 	pub code: Arc<Bytes>,
@@ -104,7 +105,7 @@ pub enum InstructionResult<Gas> {
 }
 
 /// ActionParams without code, so that it can be feed into CodeReader.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InterpreterParams {
 	/// Address of currently executed code.
 	pub code_address: Address,
@@ -160,6 +161,7 @@ pub enum InterpreterResult {
 }
 
 /// Intepreter EVM implementation
+#[derive(Clone)]
 pub struct Interpreter<Cost: CostType> {
 	pub mem: Vec<u8>,
 	pub cache: Arc<SharedCache>,

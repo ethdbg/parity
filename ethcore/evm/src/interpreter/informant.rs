@@ -22,7 +22,7 @@ mod inner {
 	macro_rules! evm_debug {
 		($x: expr) => {}
 	}
-
+    #[derive(Clone)]
 	pub struct EvmInformant;
 	impl EvmInformant {
 		pub fn new(_depth: usize) -> Self {
