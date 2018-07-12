@@ -132,7 +132,7 @@ struct InterpreterParams {
 }
 
 impl From<ActionParams> for InterpreterParams {
-	pub fn from(params: ActionParams) -> Self {
+	fn from(params: ActionParams) -> Self {
 		InterpreterParams {
 			code_address: params.code_address,
 			code_hash: params.code_hash,
