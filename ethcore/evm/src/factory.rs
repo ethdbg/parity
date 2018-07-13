@@ -27,7 +27,7 @@ use super::vmtype::VMType;
 #[derive(Clone)]
 pub struct Factory {
 	evm: VMType,
-	evm_cache: Arc<SharedCache>,
+	pub evm_cache: Arc<SharedCache>,
 }
 
 impl Factory {
