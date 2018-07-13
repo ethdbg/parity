@@ -19,7 +19,7 @@
 use ethereum_types::U256;
 
 /// Return data buffer. Holds memory from a previous call and a slice into that memory.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReturnData {
 	mem: Vec<u8>,
 	offset: usize,
