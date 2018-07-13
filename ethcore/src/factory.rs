@@ -27,7 +27,7 @@ const WASM_MAGIC_NUMBER: &'static [u8; 4] = b"\0asm";
 /// Virtual machine factory
 #[derive(Default, Clone)]
 pub struct VmFactory {
-	evm: EvmFactory,
+	pub evm: EvmFactory,
 }
 
 impl VmFactory {
