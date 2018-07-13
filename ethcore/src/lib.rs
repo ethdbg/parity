@@ -169,7 +169,7 @@ mod cache_manager;
 mod pod_account;
 mod account_db;
 mod builtin;
-mod externalities;
+pub mod externalities;
 mod blockchain;
 pub mod factory; // made this public for edb
 mod tx_filter;
