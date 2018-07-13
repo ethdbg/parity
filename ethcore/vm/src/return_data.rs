@@ -54,7 +54,7 @@ impl ReturnData {
 
 /// Gas Left: either it is a known value, or it needs to be computed by processing
 /// a return instruction.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum GasLeft {
 	/// Known gas left
 	Known(U256),
