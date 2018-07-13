@@ -19,7 +19,7 @@
 #[macro_use]
 mod informant;
 mod gasometer;
-mod stack;
+pub mod stack;
 mod memory;
 mod shared_cache;
 
