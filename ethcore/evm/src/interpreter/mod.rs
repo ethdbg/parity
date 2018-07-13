@@ -39,7 +39,7 @@ use evm::CostType;
 use instructions::{self, Instruction, InstructionInfo};
 
 use self::gasometer::Gasometer;
-use self::stack::{Stack, VecStack};
+pub use self::stack::{Stack, VecStack};
 use self::memory::Memory;
 pub use self::shared_cache::SharedCache;
 
