@@ -18,12 +18,11 @@
 
 //! Dir utilities for platform-specific operations
 extern crate app_dirs;
-extern crate dirs;
 extern crate ethereum_types;
 extern crate journaldb;
 
 pub mod helpers;
-use std::fs;
+use std::{env, fs};
 use std::path::{PathBuf, Path};
 use ethereum_types::{H64, H256};
 use journaldb::Algorithm;
@@ -32,12 +31,14 @@ use app_dirs::{AppInfo, get_app_root, AppDataType};
 // re-export platform-specific functions
 use platform::*;
 
-pub use dirs::home_dir;
-
-/// Platform-specific chains path - Windows only
+/// Platform-specific chains path for standard client - Windows only
 #[cfg(target_os = "windows")] pub const CHAINS_PATH: &str = "$LOCAL/chains";
-/// Platform-specific chains path
+/// Platform-specific chains path for light client - Windows only
+#[cfg(target_os = "windows")] pub const CHAINS_PATH_LIGHT: &str = "$LOCAL/chains_light";
+/// Platform-specific chains path for standard client
 #[cfg(not(target_os = "windows"))] pub const CHAINS_PATH: &str = "$BASE/chains";
+/// Platform-specific chains path for light client
+#[cfg(not(target_os = "windows"))] pub const CHAINS_PATH_LIGHT: &str = "$BASE/chains_light";
 
 /// Platform-specific cache path - Windows only
 #[cfg(target_os = "windows")] pub const CACHE_PATH: &str = "$LOCAL/cache";
@@ -61,8 +62,6 @@ pub struct Directories {
 	pub keys: String,
 	/// Signer dir
 	pub signer: String,
-	/// Dir to store dapps
-	pub dapps: String,
 	/// Secrets dir
 	pub secretstore: String,
 }
@@ -77,7 +76,6 @@ impl Default for Directories {
 			cache: replace_home_and_local(&data_dir, &local_dir, CACHE_PATH),
 			keys: replace_home(&data_dir, "$BASE/keys"),
 			signer: replace_home(&data_dir, "$BASE/signer"),
-			dapps: replace_home(&data_dir, "$BASE/dapps"),
 			secretstore: replace_home(&data_dir, "$BASE/secretstore"),
 		}
 	}
@@ -85,16 +83,13 @@ impl Default for Directories {
 
 impl Directories {
 	/// Create local directories
-	pub fn create_dirs(&self, dapps_enabled: bool, signer_enabled: bool, secretstore_enabled: bool) -> Result<(), String> {
+	pub fn create_dirs(&self, signer_enabled: bool, secretstore_enabled: bool) -> Result<(), String> {
 		fs::create_dir_all(&self.base).map_err(|e| e.to_string())?;
 		fs::create_dir_all(&self.db).map_err(|e| e.to_string())?;
 		fs::create_dir_all(&self.cache).map_err(|e| e.to_string())?;
 		fs::create_dir_all(&self.keys).map_err(|e| e.to_string())?;
 		if signer_enabled {
 			fs::create_dir_all(&self.signer).map_err(|e| e.to_string())?;
-		}
-		if dapps_enabled {
-			fs::create_dir_all(&self.dapps).map_err(|e| e.to_string())?;
 		}
 		if secretstore_enabled {
 			fs::create_dir_all(&self.secretstore).map_err(|e| e.to_string())?;
@@ -242,7 +237,7 @@ pub fn default_hypervisor_path() -> PathBuf {
 
 /// Get home directory.
 fn home() -> PathBuf {
-	dirs::home_dir().expect("Failed to get home dir")
+	env::home_dir().expect("Failed to get home dir")
 }
 
 /// Geth path
@@ -265,9 +260,9 @@ pub fn parity(chain: &str) -> PathBuf {
 #[cfg(target_os = "macos")]
 mod platform {
 	use std::path::PathBuf;
-	pub const AUTHOR: &'static str = "Parity";
-	pub const PRODUCT: &'static str = "io.parity.ethereum";
-	pub const PRODUCT_HYPERVISOR: &'static str = "io.parity.ethereum-updates";
+	pub const AUTHOR: &str = "Parity";
+	pub const PRODUCT: &str = "io.parity.ethereum";
+	pub const PRODUCT_HYPERVISOR: &str = "io.parity.ethereum-updates";
 
 	pub fn parity_base() -> PathBuf {
 		let mut home = super::home();
@@ -289,9 +284,9 @@ mod platform {
 #[cfg(windows)]
 mod platform {
 	use std::path::PathBuf;
-	pub const AUTHOR: &'static str = "Parity";
-	pub const PRODUCT: &'static str = "Ethereum";
-	pub const PRODUCT_HYPERVISOR: &'static str = "EthereumUpdates";
+	pub const AUTHOR: &str = "Parity";
+	pub const PRODUCT: &str = "Ethereum";
+	pub const PRODUCT_HYPERVISOR: &str = "EthereumUpdates";
 
 	pub fn parity_base() -> PathBuf {
 		let mut home = super::home();
@@ -356,7 +351,6 @@ mod tests {
 			),
 			keys: replace_home(&data_dir, "$BASE/keys"),
 			signer: replace_home(&data_dir, "$BASE/signer"),
-			dapps: replace_home(&data_dir, "$BASE/dapps"),
 			secretstore: replace_home(&data_dir, "$BASE/secretstore"),
 		};
 		assert_eq!(expected, Directories::default());
