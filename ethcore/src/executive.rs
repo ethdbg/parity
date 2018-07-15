@@ -684,7 +684,7 @@ impl<'a, B: 'a + StateBackend> Executive<'a, B> {
 		}
 	}
 
-	fn enact_result(&mut self, result: &vm::Result<FinalizationResult>, substate: &mut Substate, un_substate: Substate) {
+	pub fn enact_result(&mut self, result: &vm::Result<FinalizationResult>, substate: &mut Substate, un_substate: Substate) {
 		match *result {
 			Err(vm::Error::OutOfGas)
 				| Err(vm::Error::BadJumpDestination {..})
