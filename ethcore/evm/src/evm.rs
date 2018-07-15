@@ -22,7 +22,7 @@ use vm::{Ext, Result, ReturnData, GasLeft, Error};
 
 /// Finalization result. Gas Left: either it is a known value, or it needs to be computed by processing
 /// a return instruction.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FinalizationResult {
 	/// Final amount of gas left.
 	pub gas_left: U256,
