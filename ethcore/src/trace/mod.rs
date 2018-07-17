@@ -39,7 +39,7 @@ pub use self::types::filter::{Filter, AddressesFilter};
 use ethereum_types::{H256, U256, Address};
 use kvdb::DBTransaction;
 use bytes::Bytes;
-use self::trace::{Call, Create};
+pub use self::trace::{Call, Create}; // made pub for edb
 use vm::ActionParams;
 use header::BlockNumber;
 
