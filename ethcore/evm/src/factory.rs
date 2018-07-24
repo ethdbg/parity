@@ -17,7 +17,7 @@
 //! Evm factory.
 //!
 use std::sync::Arc;
-use vm::{self, Vm};
+use vm::{Vm, Schedule};
 use ethereum_types::U256;
 use super::vm::ActionParams;
 use super::interpreter::SharedCache;
@@ -33,12 +33,12 @@ pub struct Factory {
 impl Factory {
 	/// Create fresh instance of VM
 	/// Might choose implementation depending on supplied gas.
-	pub fn create(&self, params: ActionParams, ext: &vm::Ext) -> vm::Result<Box<Vm>> {
+	pub fn create(&self, params: ActionParams, schedule: &Schedule, depth: usize) -> Box<Vm> {
 		match self.evm {
 			VMType::Interpreter => if Self::can_fit_in_usize(&params.gas) {
-				Ok(Box::new(super::interpreter::Interpreter::<usize>::new(params, self.evm_cache.clone(), ext)?))
+				Box::new(super::interpreter::Interpreter::<usize>::new(params, self.evm_cache.clone(), schedule, depth))
 			} else {
-				Ok(Box::new(super::interpreter::Interpreter::<U256>::new(params, self.evm_cache.clone(), ext)?))
+				Box::new(super::interpreter::Interpreter::<U256>::new(params, self.evm_cache.clone(), schedule, depth))
 			}
 		}
 	}
@@ -69,12 +69,14 @@ impl Default for Factory {
 
 #[test]
 fn test_create_vm() {
+	use vm::Ext;
 	use vm::tests::FakeExt;
 	use bytes::Bytes;
 
 	let mut params = ActionParams::default();
 	params.code = Some(Arc::new(Bytes::default()));
-	let _vm = Factory::default().create(params, &FakeExt::new());
+	let ext = FakeExt::new();
+	let _vm = Factory::default().create(params, ext.schedule(), ext.depth());
 }
 
 /// Create tests by injecting different VM factories

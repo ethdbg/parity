@@ -32,7 +32,7 @@ use ethereum_types::{U256, U512, H256, Address};
 
 use vm::{
 	self, ActionParams, ParamsType, ActionValue, CallType, MessageCallResult,
-	ContractCreateResult, CreateContractAddress, ReturnData, GasLeft
+	ContractCreateResult, CreateContractAddress, ReturnData, GasLeft, Schedule
 };
 
 use evm::CostType;
@@ -44,6 +44,8 @@ use self::memory::Memory;
 pub use self::shared_cache::SharedCache;
 
 use bit_set::BitSet;
+
+const GASOMETER_PROOF: &str = "If gasometer is None, Err is immediately returned in step; this function is only called by step; qed";
 
 type ProgramCounter = usize;
 
@@ -104,6 +106,8 @@ pub enum InstructionResult<Gas> {
 	StopExecution,
 }
 
+enum Never {}
+
 /// ActionParams without code, so that it can be feed into CodeReader.
 #[derive(Debug, Clone)]
 pub struct InterpreterParams {
@@ -160,21 +164,27 @@ pub enum InterpreterResult {
 	Continue,
 }
 
+impl From<vm::Error> for InterpreterResult {
+	fn from(error: vm::Error) -> InterpreterResult {
+		InterpreterResult::Done(Err(error))
+	}
+}
+
 /// Intepreter EVM implementation
 #[derive(Clone)]
 pub struct Interpreter<Cost: CostType> {
-	pub mem: Vec<u8>,
-	pub cache: Arc<SharedCache>,
-	pub params: InterpreterParams,
-	pub reader: CodeReader,
-	pub return_data: ReturnData,
-	pub informant: informant::EvmInformant,
-	pub do_trace: bool,
-	pub done: bool,
-	pub valid_jump_destinations: Option<Arc<BitSet>>,
-	pub gasometer: Gasometer<Cost>,
-	pub stack: VecStack<U256>,
-	pub _type: PhantomData<Cost>,
+	mem: Vec<u8>,
+	cache: Arc<SharedCache>,
+	params: InterpreterParams,
+	reader: CodeReader,
+	return_data: ReturnData,
+	informant: informant::EvmInformant,
+	do_trace: bool,
+	done: bool,
+	valid_jump_destinations: Option<Arc<BitSet>>,
+	gasometer: Option<Gasometer<Cost>>,
+	stack: VecStack<U256>,
+	_type: PhantomData<Cost>,
 }
 
 impl<Cost: CostType> vm::Vm for Interpreter<Cost> {
@@ -192,15 +202,15 @@ impl<Cost: CostType> vm::Vm for Interpreter<Cost> {
 
 impl<Cost: CostType> Interpreter<Cost> {
 	/// Create a new `Interpreter` instance with shared cache.
-	pub fn new(mut params: ActionParams, cache: Arc<SharedCache>, ext: &vm::Ext) -> vm::Result<Interpreter<Cost>> {
+	pub fn new(mut params: ActionParams, cache: Arc<SharedCache>, schedule: &Schedule, depth: usize) -> Interpreter<Cost> {
 		let reader = CodeReader::new(params.code.take().expect("VM always called with code; qed"));
 		let params = InterpreterParams::from(params);
-		let informant = informant::EvmInformant::new(ext.depth());
+		let informant = informant::EvmInformant::new(depth);
 		let valid_jump_destinations = None;
-		let gasometer = Gasometer::<Cost>::new(Cost::from_u256(params.gas)?);
-		let stack = VecStack::with_capacity(ext.schedule().stack_limit, U256::zero());
+		let gasometer = Cost::from_u256(params.gas).ok().map(|gas| Gasometer::<Cost>::new(gas));
+		let stack = VecStack::with_capacity(schedule.stack_limit, U256::zero());
 
-		Ok(Interpreter {
+		Interpreter {
 			cache, params, reader, informant,
 			valid_jump_destinations, gasometer, stack,
 			done: false,
@@ -208,128 +218,122 @@ impl<Cost: CostType> Interpreter<Cost> {
 			mem: Vec::new(),
 			return_data: ReturnData::empty(),
 			_type: PhantomData,
-		})
+		}
 	}
 
 	/// Execute a single step on the VM.
 	#[inline(always)]
 	pub fn step(&mut self, ext: &mut vm::Ext) -> InterpreterResult {
-		macro_rules! try_or_done {
-			( $expr: expr ) => {
-				match $expr {
-					Ok(value) => value,
-					Err(err) => return InterpreterResult::Done(Err(err)),
-				}
-			}
-		}
-
 		if self.done {
 			return InterpreterResult::Stopped;
 		}
 
-		let result = {
-			let mut inner = || {
-				// This case is needed because code length can be zero.
-				if self.reader.position >= self.reader.len() {
-					return InterpreterResult::Done(Ok(GasLeft::Known(self.gasometer.current_gas.as_u256())));
-				}
-
-				let opcode = self.reader.code[self.reader.position];
-				let instruction = Instruction::from_u8(opcode);
-				self.reader.position += 1;
-
-				// TODO: make compile-time removable if too much of a performance hit.
-				self.do_trace = self.do_trace && ext.trace_next_instruction(
-					self.reader.position - 1, opcode, self.gasometer.current_gas.as_u256(),
-				);
-
-				if instruction.is_none() {
-					return InterpreterResult::Done(Err(vm::Error::BadInstruction {
-						instruction: opcode
-					}));
-				}
-				let instruction = instruction.expect("None case is checked above; qed");
-
-				let info = instruction.info();
-				try_or_done!(self.verify_instruction(ext, instruction, info));
-
-				// Calculate gas cost
-				let requirements = try_or_done!(self.gasometer.requirements(ext, instruction, info, &self.stack, self.mem.size()));
-				if self.do_trace {
-					ext.trace_prepare_execute(self.reader.position - 1, opcode, requirements.gas_cost.as_u256());
-				}
-
-				try_or_done!(self.gasometer.verify_gas(&requirements.gas_cost));
-				self.mem.expand(requirements.memory_required_size);
-				self.gasometer.current_mem_gas = requirements.memory_total_gas;
-				self.gasometer.current_gas = self.gasometer.current_gas - requirements.gas_cost;
-
-				evm_debug!({ informant.before_instruction(reader.position, instruction, info, &gasometer.current_gas, &stack) });
-
-				let (mem_written, store_written) = match self.do_trace {
-					true => (Self::mem_written(instruction, &self.stack), Self::store_written(instruction, &self.stack)),
-					false => (None, None),
-				};
-
-				// Execute instruction
-				let current_gas = self.gasometer.current_gas;
-				let result = try_or_done!(self.exec_instruction(
-					current_gas, ext, instruction, requirements.provide_gas
-				));
-
-				evm_debug!({ informant.after_instruction(instruction) });
-
-				if let InstructionResult::UnusedGas(ref gas) = result {
-					self.gasometer.current_gas = self.gasometer.current_gas + *gas;
-				}
-
-				if self.do_trace {
-					ext.trace_executed(
-						self.gasometer.current_gas.as_u256(),
-						self.stack.peek_top(info.ret),
-						mem_written.map(|(o, s)| (o, &(self.mem[o..o+s]))),
-						store_written,
-					);
-				}
-
-				// Advance
-				match result {
-					InstructionResult::JumpToPosition(position) => {
-						if self.valid_jump_destinations.is_none() {
-							let code_hash = self.params.code_hash.clone().unwrap_or_else(|| keccak(self.reader.code.as_ref()));
-							self.valid_jump_destinations = Some(self.cache.jump_destinations(&code_hash, &self.reader.code));
-						}
-						let jump_destinations = self.valid_jump_destinations.as_ref().expect("jump_destinations are initialized on first jump; qed");
-						let pos = try_or_done!(self.verify_jump(position, jump_destinations));
-						self.reader.position = pos;
-					},
-					InstructionResult::StopExecutionNeedsReturn {gas, init_off, init_size, apply} => {
-						let mem = mem::replace(&mut self.mem, Vec::new());
-						return InterpreterResult::Done(Ok(GasLeft::NeedsReturn {
-							gas_left: gas.as_u256(),
-							data: mem.into_return_data(init_off, init_size),
-							apply_state: apply
-						}));
-					},
-					InstructionResult::StopExecution => {
-						return InterpreterResult::Done(Ok(GasLeft::Known(self.gasometer.current_gas.as_u256())));
-					},
-					_ => {},
-				}
-
-				if self.reader.position >= self.reader.len() {
-					return InterpreterResult::Done(Ok(GasLeft::Known(self.gasometer.current_gas.as_u256())));
-				}
-
-				InterpreterResult::Continue
-			};
-			inner()
+		let result = if self.gasometer.is_none() {
+			InterpreterResult::Done(Err(vm::Error::OutOfGas))
+		} else if self.reader.len() == 0 {
+			InterpreterResult::Done(Ok(GasLeft::Known(self.gasometer.as_ref().expect("Gasometer None case is checked above; qed").current_gas.as_u256())))
+		} else {
+			self.step_inner(ext).err().expect("step_inner never returns Ok(()); qed")
 		};
+
 		if let &InterpreterResult::Done(_) = &result {
 			self.done = true;
 			self.informant.done();
 		}
 		return result;
+	}
+
+	/// Inner helper function for step.
+	#[inline(always)]
+	fn step_inner(&mut self, ext: &mut vm::Ext) -> Result<Never, InterpreterResult> {
+		let opcode = self.reader.code[self.reader.position];
+		let instruction = Instruction::from_u8(opcode);
+		self.reader.position += 1;
+
+		// TODO: make compile-time removable if too much of a performance hit.
+		self.do_trace = self.do_trace && ext.trace_next_instruction(
+			self.reader.position - 1, opcode, self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas.as_u256(),
+		);
+
+		let instruction = match instruction {
+			Some(i) => i,
+			None => return Err(InterpreterResult::Done(Err(vm::Error::BadInstruction {
+				instruction: opcode
+			}))),
+		};
+
+		let info = instruction.info();
+		self.verify_instruction(ext, instruction, info)?;
+
+		// Calculate gas cost
+		let requirements = self.gasometer.as_mut().expect(GASOMETER_PROOF).requirements(ext, instruction, info, &self.stack, self.mem.size())?;
+		if self.do_trace {
+			ext.trace_prepare_execute(self.reader.position - 1, opcode, requirements.gas_cost.as_u256());
+		}
+
+		self.gasometer.as_mut().expect(GASOMETER_PROOF).verify_gas(&requirements.gas_cost)?;
+		self.mem.expand(requirements.memory_required_size);
+		self.gasometer.as_mut().expect(GASOMETER_PROOF).current_mem_gas = requirements.memory_total_gas;
+		self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas = self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas - requirements.gas_cost;
+
+		evm_debug!({ informant.before_instruction(reader.position, instruction, info, &self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas, &stack) });
+
+		let (mem_written, store_written) = match self.do_trace {
+			true => (Self::mem_written(instruction, &self.stack), Self::store_written(instruction, &self.stack)),
+			false => (None, None),
+		};
+
+		// Execute instruction
+		let current_gas = self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas;
+		let result = self.exec_instruction(
+			current_gas, ext, instruction, requirements.provide_gas
+		)?;
+
+		evm_debug!({ informant.after_instruction(instruction) });
+
+		if let InstructionResult::UnusedGas(ref gas) = result {
+			self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas = self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas + *gas;
+		}
+
+		if self.do_trace {
+			ext.trace_executed(
+				self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas.as_u256(),
+				self.stack.peek_top(info.ret),
+				mem_written.map(|(o, s)| (o, &(self.mem[o..o+s]))),
+				store_written,
+			);
+		}
+
+		// Advance
+		match result {
+			InstructionResult::JumpToPosition(position) => {
+				if self.valid_jump_destinations.is_none() {
+					let code_hash = self.params.code_hash.clone().unwrap_or_else(|| keccak(self.reader.code.as_ref()));
+					self.valid_jump_destinations = Some(self.cache.jump_destinations(&code_hash, &self.reader.code));
+				}
+				let jump_destinations = self.valid_jump_destinations.as_ref().expect("jump_destinations are initialized on first jump; qed");
+				let pos = self.verify_jump(position, jump_destinations)?;
+				self.reader.position = pos;
+			},
+			InstructionResult::StopExecutionNeedsReturn {gas, init_off, init_size, apply} => {
+				let mem = mem::replace(&mut self.mem, Vec::new());
+				return Err(InterpreterResult::Done(Ok(GasLeft::NeedsReturn {
+					gas_left: gas.as_u256(),
+					data: mem.into_return_data(init_off, init_size),
+					apply_state: apply
+				})));
+			},
+			InstructionResult::StopExecution => {
+				return Err(InterpreterResult::Done(Ok(GasLeft::Known(self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas.as_u256()))));
+			},
+			_ => {},
+		}
+
+		if self.reader.position >= self.reader.len() {
+			return Err(InterpreterResult::Done(Ok(GasLeft::Known(self.gasometer.as_mut().expect(GASOMETER_PROOF).current_gas.as_u256()))));
+		}
+
+		Err(InterpreterResult::Continue)
 	}
 
 	fn verify_instruction(&self, ext: &vm::Ext, instruction: Instruction, info: &InstructionInfo) -> vm::Result<()> {
@@ -1072,7 +1076,7 @@ mod tests {
 	use vm::tests::{FakeExt, test_finalize};
 
 	fn interpreter(params: ActionParams, ext: &vm::Ext) -> Box<Vm> {
-		Factory::new(VMType::Interpreter, 1).create(params, ext).unwrap()
+		Factory::new(VMType::Interpreter, 1).create(params, ext.schedule(), ext.depth())
 	}
 
 	#[test]
