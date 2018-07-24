@@ -36,7 +36,7 @@
 //!   curl https://sh.rustup.rs -sSf | sh
 //!
 //!   # download and build parity
-//!   git clone https://github.com/paritytech/parity
+//!   git clone https://github.com/paritytech/parity-ethereum
 //!   cd parity
 //!   cargo build --release
 //!   ```
@@ -49,7 +49,7 @@
 //!   curl https://sh.rustup.rs -sSf | sh
 //!
 //!   # download and build parity
-//!   git clone https://github.com/paritytech/parity
+//!   git clone https://github.com/paritytech/parity-ethereum
 //!   cd parity
 //!   cargo build --release
 //!   ```
@@ -146,6 +146,7 @@ pub mod views;
 
 pub mod account_provider;
 pub mod block;
+pub mod builtin;
 pub mod client;
 pub mod db;
 pub mod encoded;
@@ -168,10 +169,9 @@ pub mod verification;
 mod cache_manager;
 mod pod_account;
 mod account_db;
-mod builtin;
-pub mod externalities;
+mod externalities;
 mod blockchain;
-pub mod factory; // made this public for edb
+mod factory;
 mod tx_filter;
 
 #[cfg(test)]

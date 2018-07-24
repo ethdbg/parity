@@ -18,7 +18,7 @@ use trie::TrieFactory;
 use ethtrie::RlpCodec;
 use account_db::Factory as AccountFactory;
 use evm::{Factory as EvmFactory, VMType};
-use vm::{self, Vm, ActionParams};
+use vm::{Vm, ActionParams};
 use wasm::WasmInterpreter;
 use keccak_hasher::KeccakHasher;
 
@@ -27,15 +27,15 @@ const WASM_MAGIC_NUMBER: &'static [u8; 4] = b"\0asm";
 /// Virtual machine factory
 #[derive(Default, Clone)]
 pub struct VmFactory {
-	pub evm: EvmFactory,
+	evm: EvmFactory,
 }
 
 impl VmFactory {
-	pub fn create(&self, params: ActionParams, ext: &vm::Ext) -> vm::Result<Box<Vm>> {
-		if ext.schedule().wasm.is_some() && params.code.as_ref().map_or(false, |code| code.len() > 4 && &code[0..4] == WASM_MAGIC_NUMBER) {
-			Ok(Box::new(WasmInterpreter::new(params)))
+	pub fn create(&self, params: &ActionParams, wasm: bool) -> Box<Vm> {
+		if wasm && params.code.as_ref().map_or(false, |code| code.len() > 4 && &code[0..4] == WASM_MAGIC_NUMBER) {
+			Box::new(WasmInterpreter)
 		} else {
-			self.evm.create(params, ext)
+			self.evm.create(&params.gas)
 		}
 	}
 
