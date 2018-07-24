@@ -164,12 +164,12 @@ impl TransactOptions<trace::NoopTracer, trace::NoopVMTracer> {
 
 /// Transaction executor.
 pub struct Executive<'a, B: 'a> {
-	state: &'a mut State<B>,
-	info: &'a EnvInfo,
-	machine: &'a Machine,
-	schedule: &'a Schedule,
-	depth: usize,
-	static_flag: bool,
+    pub state: &'a mut State<B>,
+    pub info: &'a EnvInfo,
+    pub machine: &'a Machine,
+    pub schedule: &'a Schedule,
+    pub depth: usize,
+    pub static_flag: bool,
 }
 
 impl<'a, B: 'a + StateBackend> Executive<'a, B> {
