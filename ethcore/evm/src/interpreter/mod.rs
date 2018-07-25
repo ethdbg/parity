@@ -173,17 +173,17 @@ impl From<vm::Error> for InterpreterResult {
 /// Intepreter EVM implementation
 #[derive(Clone)]
 pub struct Interpreter<Cost: CostType> {
-	mem: Vec<u8>,
+	pub mem: Vec<u8>,
 	cache: Arc<SharedCache>,
 	params: InterpreterParams,
-	reader: CodeReader,
+	pub reader: CodeReader,
 	return_data: ReturnData,
 	informant: informant::EvmInformant,
 	do_trace: bool,
 	done: bool,
 	valid_jump_destinations: Option<Arc<BitSet>>,
 	gasometer: Option<Gasometer<Cost>>,
-	stack: VecStack<U256>,
+	pub stack: VecStack<U256>,
 	_type: PhantomData<Cost>,
 }
 
