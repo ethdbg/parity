@@ -169,9 +169,9 @@ pub mod verification;
 mod cache_manager;
 mod pod_account;
 mod account_db;
-mod externalities;
+pub mod externalities;
 mod blockchain;
-mod factory;
+pub mod factory;
 mod tx_filter;
 
 #[cfg(test)]

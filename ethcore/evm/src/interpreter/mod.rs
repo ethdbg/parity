@@ -520,21 +520,34 @@ impl<Cost: CostType> Interpreter<Cost> {
 				}
 
 				let call_result = {
-					// we need to write and read from memory in the same time
-					// and we don't want to copy
-					let input = unsafe { ::std::mem::transmute(self.mem.read_slice(in_off, in_size)) };
-					let output = self.mem.writeable_slice(out_off, out_size);
-					ext.call(&call_gas.as_u256(), sender_address, receive_address, value, input, &code_address, output, call_type)
+					let input = self.mem.read_slice(in_off, in_size);
+					ext.call(&call_gas.as_u256(), sender_address, receive_address, value, input, &code_address, call_type)
 				};
+
+				let output = self.mem.writeable_slice(out_off, out_size);
 
 				return match call_result {
 					MessageCallResult::Success(gas_left, data) => {
+<<<<<<< HEAD
 						self.stack.push(U256::one());
+=======
+						let len = cmp::min(output.len(), data.len());
+						(&mut output[..len]).copy_from_slice(&data[..len]);
+
+						stack.push(U256::one());
+>>>>>>> 95335d5ae0c07beb007d05c87683a2433b8119d9
 						self.return_data = data;
 						Ok(InstructionResult::UnusedGas(Cost::from_u256(gas_left).expect("Gas left cannot be greater than current one")))
 					},
 					MessageCallResult::Reverted(gas_left, data) => {
+<<<<<<< HEAD
 						self.stack.push(U256::zero());
+=======
+						let len = cmp::min(output.len(), data.len());
+						(&mut output[..len]).copy_from_slice(&data[..len]);
+
+						stack.push(U256::zero());
+>>>>>>> 95335d5ae0c07beb007d05c87683a2433b8119d9
 						self.return_data = data;
 						Ok(InstructionResult::UnusedGas(Cost::from_u256(gas_left).expect("Gas left cannot be greater than current one")))
 					},
