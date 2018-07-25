@@ -530,14 +530,14 @@ impl<Cost: CostType> Interpreter<Cost> {
 					MessageCallResult::Success(gas_left, data) => {
 						let len = cmp::min(output.len(), data.len());
 						(&mut output[..len]).copy_from_slice(&data[..len]);
-						stack.push(U256::one());
+						self.stack.push(U256::one());
 						self.return_data = data;
 						Ok(InstructionResult::UnusedGas(Cost::from_u256(gas_left).expect("Gas left cannot be greater than current one")))
 					},
 					MessageCallResult::Reverted(gas_left, data) => {
 						let len = cmp::min(output.len(), data.len());
 						(&mut output[..len]).copy_from_slice(&data[..len]);
-						stack.push(U256::zero());
+						self.stack.push(U256::zero());
 						self.return_data = data;
 						Ok(InstructionResult::UnusedGas(Cost::from_u256(gas_left).expect("Gas left cannot be greater than current one")))
 					},
